@@ -1,0 +1,2 @@
+# mojaj
+CD-MOJ AutoJudge
