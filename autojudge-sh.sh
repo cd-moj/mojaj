@@ -14,6 +14,8 @@
 #You should have received a copy of the GNU General Public License
 #along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 
+#!/bin/bash
+
 LING="$1"
 PROBID="$2"
 CODIGO="$3"
@@ -28,6 +30,12 @@ TMPDIR="$(mktemp -d)"
 TLMULT=1
 TLDRIFT="0.1"
 
+if [[ ! -d $PROBSDIR/$PROBID ]] ;then
+  echo "UNKNOWN problem ID \"$PROBID\""
+  rm -rf $TMPDIR
+  exit 0
+fi
+
 
 cat > $TMPDIR/Main.$LING
 
@@ -37,18 +45,25 @@ elif [[ "$LING" == "pas" ]]; then
   fpc -O2 -o$TMPDIR/exe $TMPDIR/Main.$LING &>/dev/null
   TLDRIFT="0.4"
 elif [[ "$LING" == "java" ]]; then
-  (cd $TMPDIR && javac -J-Xms10m -J-Xmx100m -J-Xss10m Main.java)
+  (cd $TMPDIR && javac -J-Xms10m -J-Xmx100m -J-Xss10m Main.java &>/dev/null)
   if [[ -e $TMPDIR/Main.class ]]; then
     TLDRIFT=1
     printf "#!/bin/bash\nCLASSPATH=$TMPDIR java -Xms10m -Xmx500m -Xss10m Main\nexit \$?" > $TMPDIR/exe
     chmod a+x $TMPDIR/exe
   fi
-else
+elif [[ "$LING" == "spim" ]]; then
+    TLDRIFT=1
+    printf "#!/bin/bash\nspim -file $TMPDIR/Main.spim | tail -n+6\nexit \$?" > $TMPDIR/exe
+    chmod a+x $TMPDIR/exe
+elif [[ "$LING" == "c" ]]; then
   CORRETOR=
   if [[ -e "$PROBSDIR/$PROBID/files/corretor.c" ]]; then
     CORRETOR="$PROBSDIR/$PROBID/files/corretor.c"
   fi
-  gcc -O2 -lm $CORRETOR $TMPDIR/Main.$LING -o $TMPDIR/exe -lm &>/dev/null
+  gcc -lm $CORRETOR $TMPDIR/Main.$LING -o $TMPDIR/exe -lm &>/dev/null
+else
+  echo "Linguagem nao identificada, utilize a extensão correta."
+  exit 0
 fi
 
 RESP=
@@ -91,7 +106,7 @@ for TESTE in $PROBSDIR/$PROBID/tests/in*; do
 EOF
   cat << EOF > $TMPDIR/wrapper.sh
 #!/bin/bash -x
-  if [[ "$LING" != "java" ]]; then
+  if [[ "$LING" != "java" ]] && [[ "$LING" != "spim" ]]; then
     export LD_PRELOAD=$TMPDIR/libc-wrapper.so
   fi
   exec $TMPDIR/exe < $INFILE > $TMPDIR/out
